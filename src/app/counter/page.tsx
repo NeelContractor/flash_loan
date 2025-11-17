@@ -1,4 +1,4 @@
-import CounterFeature from '@/components/counter/counter-feature'
+import CounterFeature from '@/components/flash_loan/counter-feature'
 
 export default function Page() {
   return <CounterFeature />
