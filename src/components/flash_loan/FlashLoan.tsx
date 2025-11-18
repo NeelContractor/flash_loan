@@ -11,10 +11,12 @@ import {
   MINT_SIZE,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { BN } from "bn.js"
 import { Button } from "../ui/button"
 import { WalletButton } from "../solana/solana-provider"
+import { Input } from "../ui/input"
+import { Label } from "../ui/label"
 
 // ADMIN COMPONENT - Create mint and initialize pool (ONCE)
 export function AdminInitializePool() {
@@ -25,9 +27,45 @@ export function AdminInitializePool() {
     const [createdMintAddress, setCreatedMintAddress] = useState<string>('')
     const [createdPoolAddress, setCreatedPoolAddress] = useState<string>('')
     const [showSuccess, setShowSuccess] = useState(false)
+    const [hasExistingPool, setHasExistingPool] = useState(false)
+    const [isCheckingPools, setIsCheckingPools] = useState(true)
 
     // Check if user is admin (you can customize this check)
     const isAdmin = publicKey?.toString() === "7EpJ8M9MBnN3Jyi7bwKhV9YFCzhDEK7drbMCTRB9Xm8Y"
+
+    // Check if pools already exist
+    useEffect(() => {
+        const checkExistingPools = async () => {
+            try {
+                setIsCheckingPools(true)
+                
+                if (!program || !publicKey) {
+                    setHasExistingPool(false)
+                    return
+                }
+
+                // Fetch all loan pools
+                const pools = await program.account.loanPool.all()
+                
+                // Check if any pool was created by this admin
+                const adminPools = pools.filter(
+                    (pool) => pool.account.authority.toString() === publicKey.toString()
+                )
+
+                setHasExistingPool(adminPools.length > 0)
+                
+                console.log('Total pools:', pools.length)
+                console.log('Admin pools:', adminPools.length)
+            } catch (error) {
+                console.error('Error checking pools:', error)
+                setHasExistingPool(false)
+            } finally {
+                setIsCheckingPools(false)
+            }
+        }
+
+        checkExistingPools()
+    }, [program, publicKey, loanPoolAccounts.data])
 
     const handleCreatePoolOnce = async () => {
         if (!publicKey) return
@@ -117,16 +155,8 @@ export function AdminInitializePool() {
             setCreatedMintAddress(mintKeypair.publicKey.toString())
             setCreatedPoolAddress(poolPda.toString())
             setShowSuccess(true)
-
-            // alert(
-            //     `✅ POOL CREATED!\n\n` +
-            //     `Mint: ${mintKeypair.publicKey.toString()}\n\n` +
-            //     `Pool: ${poolPda.toString()}\n\n` +
-            //     `Share this mint address with users so they can deposit tokens and use the pool!`
-            // )
         } catch (error) {
             console.error('❌ Error:', error)
-            // alert(`Error: ${error.message}`)
         } finally {
             setIsCreating(false)
         }
@@ -170,10 +200,10 @@ export function AdminInitializePool() {
 
             <div className="space-y-3 mt-4">
                 <div className="form-control">
-                <label className="label">
+                <Label className="label">
                     <span className="label-text font-semibold">Mint Address (share with users)</span>
-                </label>
-                <input
+                </Label>
+                <Input
                     type="text"
                     className="input input-bordered w-full text-xs"
                     value={createdMintAddress}
@@ -182,10 +212,10 @@ export function AdminInitializePool() {
                 </div>
 
                 <div className="form-control">
-                <label className="label">
+                <Label className="label">
                     <span className="label-text font-semibold">Pool Address</span>
-                </label>
-                <input
+                </Label>
+                <Input
                     type="text"
                     className="input input-bordered w-full text-xs"
                     value={createdPoolAddress}
@@ -209,57 +239,174 @@ export function AdminInitializePool() {
         )
     }
 
-    return (
+    // Loading state
+    if (isCheckingPools) {
+        return (
         <div className="card bg-base-200 shadow-xl p-5">
-        <div className="card-body">
-            <h2 className="card-title text-3xl font-bold">Admin: Initialize New Pool</h2>
-            <p className="text-sm text-base-content/70 mb-4">
-            Create a new token mint and initialize a flash loan pool. This should only be done once per token.
-            </p>
+            <div className="card-body flex items-center justify-center">
+            <span className="loading loading-spinner loading-lg"></span>
+            <p className="mt-4">Checking existing pools...</p>
+            </div>
+        </div>
+        )
+    }
 
+    // Pool already exists
+    if (hasExistingPool) {
+        return (
+        <div className="card bg-base-200 shadow-xl p-5">
+            <div className="card-body">
             <div className="alert alert-info">
-            <svg
+                <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
                 className="stroke-current shrink-0 w-6 h-6"
-            >
+                >
                 <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
-            </svg>
-            <div className="text-sm">
-                <p className="font-bold">Admin Action:</p>
-                <p>This creates a new pool that users can deposit into and borrow from.</p>
-            </div>
+                </svg>
+                <div>
+                <h3 className="font-bold">Pool Already Initialized</h3>
+                <p className="text-sm">You have already created a flash loan pool.</p>
+                </div>
             </div>
 
-            <div className="card-actions flex justify-center mt-4">
+            <div className="mt-4 space-y-3">
+                <p className="text-sm text-base-content/70">
+                Your pool is active and users can deposit tokens. Check the "Available Pools" section
+                below to manage your pool.
+                </p>
+
+                <div className="stats shadow bg-base-300 w-full">
+                <div className="stat">
+                    <div className="stat-title">Total Pools</div>
+                    <div className="stat-value text-2xl">{loanPoolAccounts.data?.length || 0}</div>
+                    <div className="stat-desc">Created by you</div>
+                </div>
+                </div>
+            </div>
+
+            <div className="divider">Need another pool?</div>
+
+            <p className="text-xs text-base-content/70 text-center mb-4">
+                If you need to create another pool for a different token, you can do so below.
+            </p>
+
             <Button
-                className="btn btn-primary btn-lg"
-                onClick={handleCreatePoolOnce}
-                disabled={!publicKey || isCreating || initializePool.isPending}
+                className="btn btn-outline btn-sm"
+                onClick={() => setHasExistingPool(false)}
             >
-                {isCreating || initializePool.isPending ? (
-                <>
-                    <span className="loading loading-spinner"></span>
-                    Creating Pool...
-                </>
-                ) : (
-                '🚀 Create New Pool'
-                )}
+                Create Another Pool
             </Button>
             </div>
-
-            {isCreating && (
-            <div className="mt-4">
-                <progress className="progress progress-primary w-full"></progress>
-            </div>
-            )}
         </div>
+        )
+    }
+
+    // Initialize new pool form
+    return (
+        <div className="card bg-base-200 shadow-xl p-5">
+            <div className="card-body">
+                <h2 className="card-title text-3xl font-bold">Admin: Initialize New Pool</h2>
+                <p className="text-sm text-base-content/70 mb-4">
+                Create a new token mint and initialize a flash loan pool. This creates the foundation for
+                users to deposit and borrow tokens.
+                </p>
+
+                <div className="alert alert-info">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="stroke-current shrink-0 w-6 h-6"
+                >
+                    <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                </svg>
+                <div className="text-sm">
+                    <p className="font-bold">This will create:</p>
+                    <ul className="list-disc list-inside mt-1">
+                    <li>New SPL token mint (6 decimals)</li>
+                    <li>Flash loan pool with 5% fee</li>
+                    <li>10,000,000 tokens minted to you</li>
+                    </ul>
+                </div>
+                </div>
+
+                <div className="stats shadow bg-base-300 text-sm">
+                <div className="stat py-3">
+                    <div className="stat-title text-xs">Transactions</div>
+                    <div className="stat-value text-lg">3</div>
+                    <div className="stat-desc">Will be sent</div>
+                </div>
+                <div className="stat py-3">
+                    <div className="stat-title text-xs">Est. Cost</div>
+                    <div className="stat-value text-lg">~0.01</div>
+                    <div className="stat-desc">SOL</div>
+                </div>
+                <div className="stat py-3">
+                    <div className="stat-title text-xs">Pool Fee</div>
+                    <div className="stat-value text-lg">5%</div>
+                    <div className="stat-desc">On loans</div>
+                </div>
+                </div>
+
+                <div className="card-actions flex justify-center mt-6">
+                <Button
+                    className="btn btn-primary btn-lg"
+                    onClick={handleCreatePoolOnce}
+                    disabled={!publicKey || isCreating || initializePool.isPending}
+                >
+                    {isCreating || initializePool.isPending ? (
+                    <>
+                        <span className="loading loading-spinner"></span>
+                        {isCreating && !initializePool.isPending && 'Creating Mint...'}
+                        {initializePool.isPending && 'Initializing Pool...'}
+                    </>
+                    ) : (
+                        '🚀 Create New Pool'
+                    )}
+                </Button>
+                </div>
+
+                {isCreating && (
+                    <div className="mt-4">
+                        <progress className="progress progress-primary w-full"></progress>
+                        <div className="flex justify-between text-xs mt-2 text-base-content/70">
+                        <span>Processing...</span>
+                        <span>Step {initializePool.isPending ? '3' : '1-2'} of 3</span>
+                        </div>
+                    </div>
+                )}
+
+                {!publicKey && (
+                    <div className="alert alert-warning mt-4">
+                        <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="stroke-current shrink-0 h-6 w-6"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                        </svg>
+                        <span>Please connect your wallet to continue</span>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
@@ -328,9 +475,9 @@ export function AdminMintTokens() {
             <h2 className="card-title text-2xl font-bold">Admin: Mint Tokens to Users</h2>
 
             <div className="form-control w-full">
-            <label className="label">
+            <Label className="label">
                 <span className="label-text">Select Pool/Mint</span>
-            </label>
+            </Label>
             <select
                 className="select select-bordered w-full"
                 value={selectedMint}
@@ -346,10 +493,10 @@ export function AdminMintTokens() {
             </div>
 
             <div className="form-control w-full">
-            <label className="label">
+            <Label className="label">
                 <span className="label-text">Recipient Address</span>
-            </label>
-            <input
+            </Label>
+            <Input
                 type="text"
                 placeholder="User wallet address"
                 className="input input-bordered w-full"
@@ -359,10 +506,10 @@ export function AdminMintTokens() {
             </div>
 
             <div className="form-control w-full">
-            <label className="label">
+            <Label className="label">
                 <span className="label-text">Amount</span>
-            </label>
-            <input
+            </Label>
+            <Input
                 type="number"
                 placeholder="0.00"
                 className="input input-bordered w-full"
@@ -533,10 +680,10 @@ function FlashLoanCard({ account }: { account: PublicKey }) {
 
                 {activeTab === 'deposit' && (
                     <div className="form-control w-full mt-4">
-                        <label className="label">
+                        <Label className="label">
                         <span className="label-text">Deposit Amount</span>
-                        </label>
-                        <input
+                        </Label>
+                        <Input
                             type="number"
                             placeholder="0.00"
                             className="input input-bordered w-full"
@@ -557,10 +704,10 @@ function FlashLoanCard({ account }: { account: PublicKey }) {
 
                 {activeTab === 'withdraw' && (
                     <div className="form-control w-full mt-4">
-                        <label className="label">
+                        <Label className="label">
                             <span className="label-text">Withdraw Amount</span>
-                        </label>
-                        <input
+                        </Label>
+                        <Input
                             type="number"
                             placeholder="0.00"
                             className="input input-bordered w-full"
