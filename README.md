@@ -4,7 +4,8 @@
 ## Things done
 - contract
 - test
+- initializePool, deposit, withdraw handle 
 
 ## Things left
-- initializePool handle error
-- frontend left to complete
+- frontend ui looks bad
+- take loan in contract and else where and add take loan and repay handlers to frontend
